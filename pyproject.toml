@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ducc-demo"
+version = "0.0.1"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pixell",
+    "ducc0",
+]
+description = "Quick demonstration of spherical harmonic transforms (SHTs) with ducc"
+readme = "README.md"
+authors = [
+  {name = "Zach Atkins", email = "zatkins2@gmail.com"},
+]
+license-files = ["LICENSE"]
+
+[tool.uv]
+no-binary-package = ["ducc0"]
