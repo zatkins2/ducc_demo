@@ -1,17 +1,22 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pixell import enmap, curvedsky, wcsutils, enplot
-from ducc0 import sht
+from ducc0 import sht # we need this regardless of which sht module we choose dynamically
 
 import argparse
-import os
 from os.path import join as opj
+import importlib
 
 # load the ACT DR6 map, provide the directory in which you downloaded the map
 parser = argparse.ArgumentParser()
 parser.add_argument('dir', type=str,
                     help='The path of the directory on disk where you '
                     'downloaded the ACT DR6 coadd map.')
+parser.add_argument('--shtpack', type=str, default='ducc0',
+                    help='The name of a package or module containing a '
+                    'submodule with name sht. For example, to use ducc0 '
+                    'to perform the sht operations, supply "ducc0" and '
+                    'script will "from ducc0 import sht".')
 parser.add_argument('--lmax', type=int, default=10000,
                     help='The bandlimit (maximum harmonic multipole) to use.')
 parser.add_argument('--nthreads', type=int, default=0,
@@ -20,8 +25,11 @@ parser.add_argument('--nthreads', type=int, default=0,
 args = parser.parse_args()
 
 data_dir = args.dir
+shtpack = args.shtpack
 lmax = args.lmax
 nthreads = args.nthreads
+
+sht_module = importlib.import_module(f'{shtpack}.sht')
 
 # we will use pixell utilities just to load the data and wcs from the file.
 # while pixell also wraps ducc0 to handle general calls to spherical
@@ -105,14 +113,14 @@ ducc_rings = curvedsky.get_ring_info(*flipped_masked_imap.geometry)
 
 # perform transform (spin-0 and spin-2). here is where you would try a new
 # implementation and compare results!
-alm_T = sht.adjoint_synthesis(
+alm_T = sht_module.adjoint_synthesis(
     map=(quadw[..., None] * flipped_masked_imap)[0:1].reshape(1, -1), spin=0,
     lmax=lmax, theta=ducc_rings.theta, nphi=ducc_rings.nphi,
     phi0=ducc_rings.phi0, ringstart=ducc_rings.offsets,
     nthreads=nthreads
     )
 
-alm_EB = sht.adjoint_synthesis(
+alm_EB = sht_module.adjoint_synthesis(
     map=(quadw[..., None] * flipped_masked_imap)[1:].reshape(2, -1), spin=2, 
     lmax=lmax, theta=ducc_rings.theta, nphi=ducc_rings.nphi,
     phi0=ducc_rings.phi0, ringstart=ducc_rings.offsets,
@@ -121,7 +129,7 @@ alm_EB = sht.adjoint_synthesis(
 
 alm_TEB = np.concatenate([alm_T, alm_EB], axis=0)
 
-np.save(opj(data_dir, 'ducc_alm_TEB_adjoint_synthesis.npy'), alm_TEB)
+np.save(opj(data_dir, f'{shtpack}_alm_TEB_adjoint_synthesis.npy'), alm_TEB)
 
 ###############################################################################
 ###############################################################################
@@ -154,14 +162,14 @@ ducc_info = curvedsky.analyse_geometry(*flipped_fullsky_masked_imap.geometry)
 
 # perform transform (spin-0 and spin-2). here is where you would try a new
 # implementation and compare results!
-alm_T = sht.analysis_2d(
+alm_T = sht_module.analysis_2d(
     map=(flipped_fullsky_masked_imap)[0:1], spin=0,
     lmax=lmax, geometry=ducc_geometry.name,
     phi0=ducc_info.phi0,
     nthreads=nthreads
     )
 
-alm_EB = sht.analysis_2d(
+alm_EB = sht_module.analysis_2d(
     map=(flipped_fullsky_masked_imap)[1:], spin=2,
     lmax=lmax, geometry=ducc_geometry.name,
     phi0=ducc_info.phi0,
@@ -170,7 +178,7 @@ alm_EB = sht.analysis_2d(
 
 alm_TEB = np.concatenate([alm_T, alm_EB], axis=0)
 
-np.save(opj(data_dir, 'ducc_alm_TEB_analysis_2d.npy'), alm_TEB)
+np.save(opj(data_dir, f'{shtpack}_alm_TEB_analysis_2d.npy'), alm_TEB)
 
 ###############################################################################
 ###############################################################################
@@ -200,14 +208,14 @@ ducc_rings = curvedsky.get_ring_info(*flipped_masked_imap.geometry)
 
 # perform transform (spin-0 and spin-2). here is where you would try a new
 # implementation and compare results!
-map_I = sht.synthesis(
+map_I = sht_module.synthesis(
     alm=alm_T, spin=0,
     lmax=lmax, theta=ducc_rings.theta, nphi=ducc_rings.nphi,
     phi0=ducc_rings.phi0, ringstart=ducc_rings.offsets,
     nthreads=nthreads
     )
 
-map_QU = sht.synthesis(
+map_QU = sht_module.synthesis(
     alm=alm_EB, spin=2, 
     lmax=lmax, theta=ducc_rings.theta, nphi=ducc_rings.nphi,
     phi0=ducc_rings.phi0, ringstart=ducc_rings.offsets,
@@ -223,7 +231,7 @@ map_IQU = map_IQU.reshape(*flipped_masked_imap.shape)
 map_IQU = map_IQU[..., ::-1, ::-1]
 map_IQU = enmap.ndmap(map_IQU, masked_imap.wcs)
 
-enmap.write_map(opj(data_dir, 'ducc_map_IQU_synthesis.fits'), map_IQU)
+enmap.write_map(opj(data_dir, f'{shtpack}_map_IQU_synthesis.fits'), map_IQU)
 
 ###############################################################################
 ###############################################################################
@@ -233,22 +241,22 @@ for i in range(3):
     p = enplot.plot(map_IQU[i], downgrade=32, colorbar=True, ticks=15)
     p_diff = enplot.plot(map_IQU[i] - masked_imap[i], downgrade=32, colorbar=True, ticks=15)
 
-    enplot.write(opj(data_dir, f"synth_adj_synth_act_dr6_planck_coadd_{'IQU'[i]}"), p)
-    enplot.write(opj(data_dir, f"synth_adj_synth_vs_original_act_dr6_planck_coadd_{'IQU'[i]}"), p_diff)
+    enplot.write(opj(data_dir, f"{shtpack}_synth_adjsynth_act_dr6_planck_coadd_{'IQU'[i]}"), p)
+    enplot.write(opj(data_dir, f"{shtpack}_synth_adjsynth_vs_original_act_dr6_planck_coadd_{'IQU'[i]}"), p_diff)
 
 ###############################################################################
 ############################### Do 2nd method #################################
 
 # perform transform (spin-0 and spin-2). here is where you would try a new
 # implementation and compare results!
-map_I = sht.synthesis_2d(
+map_I = sht_module.synthesis_2d(
     alm=alm_T, spin=0,
     lmax=lmax, geometry=ducc_geometry.name,
     phi0=ducc_info.phi0, ntheta=ducc_geometry.ny, nphi=ducc_geometry.nx,
     nthreads=nthreads
     )
 
-map_QU = sht.synthesis_2d(
+map_QU = sht_module.synthesis_2d(
     alm=alm_EB, spin=2,
     lmax=lmax, geometry=ducc_geometry.name,
     phi0=ducc_info.phi0, ntheta=ducc_geometry.ny, nphi=ducc_geometry.nx,
@@ -264,7 +272,7 @@ map_IQU = map_IQU[..., ducc_geometry.yoff:ducc_geometry.yoff + imap.shape[-2], :
 map_IQU = map_IQU[..., ::-1, ::-1]
 map_IQU = enmap.ndmap(map_IQU, masked_imap.wcs)
 
-enmap.write_map(opj(data_dir, 'ducc_map_IQU_synthesis_2d.fits'), map_IQU)
+enmap.write_map(opj(data_dir, f'{shtpack}_map_IQU_synthesis_2d.fits'), map_IQU)
 
 ###############################################################################
 ###############################################################################
@@ -274,13 +282,5 @@ for i in range(3):
     p = enplot.plot(map_IQU[i], downgrade=32, colorbar=True, ticks=15)
     p_diff = enplot.plot(map_IQU[i] - masked_imap[i], downgrade=32, colorbar=True, ticks=15)
 
-    enplot.write(opj(data_dir, f"synth2d_ana2d_act_dr6_planck_coadd_{'IQU'[i]}"), p)
-    enplot.write(opj(data_dir, f"synth2d_ana2d_vs_original_act_dr6_planck_coadd_{'IQU'[i]}"), p_diff)
-
-# plot to visualize the synethized map and compare to the original map
-for i in range(3):
-    p = enplot.plot(map_IQU[i], downgrade=32, colorbar=True, ticks=15)
-    p_diff = enplot.plot(map_IQU[i] - masked_imap[i], downgrade=32, colorbar=True, ticks=15)
-
-    enplot.write(opj(data_dir, f"synth2d_ana2d_act_dr6_planck_coadd_{'IQU'[i]}"), p)
-    enplot.write(opj(data_dir, f"synth2d_ana2d_vs_original_act_dr6_planck_coadd_{'IQU'[i]}"), p_diff)
+    enplot.write(opj(data_dir, f"{shtpack}_synth2d_ana2d_act_dr6_planck_coadd_{'IQU'[i]}"), p)
+    enplot.write(opj(data_dir, f"{shtpack}_synth2d_ana2d_vs_original_act_dr6_planck_coadd_{'IQU'[i]}"), p_diff)
