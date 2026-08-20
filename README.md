@@ -25,6 +25,7 @@ The demo script `ducc_demo.py` gives a minimum working example of how ducc sets 
 
 Run the script:
 ```
+source .venv/bin/activate
 python ducc_demo.py MY_DIR --shtpack SHTPACK --lmax LMAX --nthreads NTHREADS
 ```
 
