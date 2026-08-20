@@ -90,7 +90,7 @@ flipped_masked_imap = masked_imap[..., ::-1, ::-1]
 # 1. We can use sht.adjoint_synthesis. We need to give ducc more info about the
 #    declination rings; in principle these don't have to follow one of the above
 #    geometries with exact quadrature weights (but in this case, they do)
-# 2. We can use sht.adjoint_synthesis_2d if we first "insert" the cut map into a
+# 2. We can use sht.analysis_2d if we first "insert" the cut map into a
 #    a map that spans the full declination range. We only specify the quadrature
 #    scheme which is 'F1' in this case. The pixelization must follow one of the 
 #    quadrature schemes
@@ -140,7 +140,7 @@ np.save(opj(data_dir, f'{shtpack}_alm_TEB_adjoint_synthesis.npy'), alm_TEB)
 # NOTE: no quadrature weights manually applied, ducc supplies them internally
 
 # need to insert the data into a full-sky array first.
-# NOTE: here, i am manually inserting what i know to be the correct res and variant.
+# NOTE: here, i am manually passing what i know to be the correct res and variant.
 # this just gives me an array with the correct shape and wcs for a fullsky map
 fullsky_masked_imap_shape, fullsky_masked_imap_shape_wcs = enmap.fullsky_geometry(
     res=np.deg2rad(1/120), variant='fejer1'
